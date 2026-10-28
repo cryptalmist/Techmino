@@ -146,6 +146,7 @@ jobs:
             exit 1
           fi
           echo "CCLOADER_PATH=$CCLOADER_PATH" >> $GITHUB_ENV
+          mkdir -p ${{ env.LOVE_IOS_SRC }}/platform/xcode
           cp "$CCLOADER_PATH" ${{ env.LOVE_IOS_SRC }}/platform/xcode/libCCloader.a
       - name: Install LÖVE iOS build deps
         shell: bash
