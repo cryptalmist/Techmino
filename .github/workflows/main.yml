@@ -10,7 +10,6 @@ on:
 env:
   BUILD_ASSETS_FOLDER: ./.github/build
   BUILD_TYPE: ${{ fromJSON('["dev", "release"]')[startsWith(github.ref, 'refs/tags/v')] }}
-  COLD_CLEAR_DOWNLOAD_URL: https://github.com/26F-Studio/cold_clear_ai_love2d_wrapper/releases/download/11.5
   CORE_LOVE_ARTIFACT_NAME: core_love_package
   CORE_LOVE_PACKAGE_PATH: ./core.love
 
@@ -102,7 +101,6 @@ jobs:
     needs: [get-info, build-core]
     if: github.event_name != 'pull_request'
     env:
-      COLD_CLEAR_FOLDER: ./libIOS
       OUTPUT_FOLDER: ./build
       RELEASE_FOLDER: ./release
       LOVE_IOS_SRC: ./love-ios
@@ -128,26 +126,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.CORE_LOVE_ARTIFACT_NAME }}
-      - name: Download ColdClear iOS
-        uses: ./.github/actions/get-unzip
-        with:
-          url: ${{ env.COLD_CLEAR_DOWNLOAD_URL }}/iOS.zip
-          dir: ${{ env.COLD_CLEAR_FOLDER }}
-      - name: Prepare ColdClear CCloader for iOS
-        shell: bash
-        run: |
-          echo "=== Contents of ColdClear iOS download ==="
-          find ${{ env.COLD_CLEAR_FOLDER }} -type f | sort
-          echo "=== Looking for libCCloader.a ==="
-          CCLOADER_PATH=$(find ${{ env.COLD_CLEAR_FOLDER }} -name "libCCloader.a" | head -1)
-          echo "Found: $CCLOADER_PATH"
-          if [ -z "$CCLOADER_PATH" ]; then
-            echo "libCCloader.a not found in ColdClear download!"
-            exit 1
-          fi
-          echo "CCLOADER_PATH=$CCLOADER_PATH" >> $GITHUB_ENV
-          mkdir -p ${{ env.LOVE_IOS_SRC }}/platform/xcode
-          cp "$CCLOADER_PATH" ${{ env.LOVE_IOS_SRC }}/platform/xcode/libCCloader.a
       - name: Install LÖVE iOS build deps
         shell: bash
         run: |
@@ -165,16 +143,11 @@ jobs:
           tar xzf deps.tar.gz
           mkdir -p ${{ env.LOVE_IOS_SRC }}/platform/xcode/ios/libraries
           cp -r love-apple-dependencies-11.5/iOS/libraries/* ${{ env.LOVE_IOS_SRC }}/platform/xcode/ios/libraries/
-      - name: Apply LÖVE iOS patch
-        shell: bash
-        run: |
-          cd ${{ env.LOVE_IOS_SRC }}
-          patch -p1 < ../${{ env.BUILD_ASSETS_FOLDER }}/iOS/love.patch
       - name: Build LÖVE iOS app via Xcode
         shell: bash
         run: |
           cd ${{ env.LOVE_IOS_SRC }}/platform/xcode
-          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos -arch arm64 ONLY_ACTIVE_ARCH=NO -destination "generic/platform=iOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0 OTHER_LDFLAGS="-lCCloader" LIBRARY_SEARCH_PATHS="${{ env.LOVE_IOS_SRC }}/platform/xcode"
+          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos -arch arm64 ONLY_ACTIVE_ARCH=NO -destination "generic/platform=iOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0
       - name: Create iOS app bundle structure
         shell: bash
         run: |
