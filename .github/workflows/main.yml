@@ -152,6 +152,7 @@ jobs:
         shell: bash
         run: |
           cd ${{ env.LOVE_IOS_SRC }}/platform/xcode
+          xcodebuild -project love.xcodeproj -list
           xcodebuild -project love.xcodeproj -scheme love -configuration Release -sdk iphoneos -arch arm64 ONLY_ACTIVE_ARCH=NO
       - name: Create iOS app bundle structure
         shell: bash
