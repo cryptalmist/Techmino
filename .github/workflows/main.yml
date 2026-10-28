@@ -202,9 +202,13 @@ jobs:
           rm -rf "$APP_DIR"
           mkdir -p "$APP_DIR"
 
-          # Copy the full built LÖVE app bundle (binary, frameworks, resources)
-          BUILT_APP=$(find ${{ github.workspace }}/${{ env.LOVE_IOS_SRC }} -name "love.app" -type d | head -1)
+          # Find the built LÖVE app bundle (xcodebuild puts it in DerivedData)
+          BUILT_APP=$(ls -td "${HOME}/Library/Developer/Xcode/DerivedData"/*/Build/Products/Release-iphoneos/love.app 2>/dev/null | head -1)
           echo "Built app: $BUILT_APP"
+          if [ -z "$BUILT_APP" ]; then
+            echo "ERROR: Could not find built love.app in DerivedData"
+            exit 1
+          fi
           cp -r "$BUILT_APP/." "$APP_DIR/"
 
           # Copy Techmino's Info.plist (overrides LÖVE's)
