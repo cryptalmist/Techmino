@@ -139,10 +139,10 @@ jobs:
           echo "=== Contents of ColdClear iOS download ==="
           find ${{ env.COLD_CLEAR_FOLDER }} -type f | sort
           echo "=== Looking for libCCloader.a ==="
-          CCLOADER_PATH=$(find ${{ env.COLD_CLEAR_FOLDER }} -name "*.a" | head -1)
+          CCLOADER_PATH=$(find ${{ env.COLD_CLEAR_FOLDER }} -name "libCCloader.a" | head -1)
           echo "Found: $CCLOADER_PATH"
           if [ -z "$CCLOADER_PATH" ]; then
-            echo "No static library found in ColdClear download!"
+            echo "libCCloader.a not found in ColdClear download!"
             exit 1
           fi
           echo "CCLOADER_PATH=$CCLOADER_PATH" >> $GITHUB_ENV
