@@ -218,6 +218,7 @@ jobs:
           cd ${{ env.IOS_PROJECT }}/..
           rm -f "$IPA_NAME"
           zip -r "$IPA_NAME" Payload
+          mkdir -p ${{ env.OUTPUT_FOLDER }}
           mv "$IPA_NAME" ${{ env.OUTPUT_FOLDER }}/
 
       - name: Upload iOS artifact
