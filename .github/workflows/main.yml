@@ -136,7 +136,7 @@ jobs:
       - name: Install LÖVE iOS build deps
         shell: bash
         run: |
-          brew install cmake coreutils
+          brew install freetype coreutils
       - name: Get LÖVE 11.5 iOS source
         shell: bash
         run: |
@@ -148,14 +148,11 @@ jobs:
         run: |
           cd ${{ env.LOVE_IOS_SRC }}
           patch -p1 < ../${{ env.BUILD_ASSETS_FOLDER }}/iOS/love.patch
-      - name: Build LÖVE iOS framework
+      - name: Build LÖVE iOS framework via Xcode
         shell: bash
         run: |
-          cd ${{ env.LOVE_IOS_SRC }}
-          mkdir -p build-ios
-          cd build-ios
-          cmake .. -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-          xcodebuild -scheme love -configuration Release -sdk iphoneos -arch arm64
+          cd ${{ env.LOVE_IOS_SRC }}/platform/xcode
+          xcodebuild -scheme love -configuration Release -sdk iphoneos -arch arm64 ONLY_ACTIVE_ARCH=NO
       - name: Create iOS app bundle structure
         shell: bash
         run: |
