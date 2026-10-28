@@ -199,10 +199,31 @@ jobs:
         shell: bash
         run: |
           APP_DIR=${{ env.IOS_PROJECT }}/../Payload/Techmino.app
+          rm -rf "$APP_DIR"
           mkdir -p "$APP_DIR"
-          cp ${{ env.CORE_LOVE_PACKAGE_PATH }} "$APP_DIR/core.love"
-          cp ${{ env.BUILD_ASSETS_FOLDER }}/iOS/${{ env.BUILD_TYPE }}/icon/icon_1024x1024.png "$APP_DIR/Icon-1024.png" 2>/dev/null || true
+
+          # Copy the full built LÖVE app bundle (binary, frameworks, resources)
+          BUILT_APP=$(find ${{ github.workspace }}/${{ env.LOVE_IOS_SRC }} -name "love.app" -type d | head -1)
+          echo "Built app: $BUILT_APP"
+          cp -r "$BUILT_APP/." "$APP_DIR/"
+
+          # Copy Techmino's Info.plist (overrides LÖVE's)
           cp ${{ env.IOS_PROJECT }}/../Techmino-Info.plist "$APP_DIR/Info.plist"
+
+          # Rename LÖVE binary to Techmino (matching CFBundleExecutable in Info.plist)
+          if [ -f "$APP_DIR/love" ]; then
+            mv "$APP_DIR/love" "$APP_DIR/Techmino"
+          fi
+          chmod +x "$APP_DIR/Techmino"
+
+          # Copy core.love into the bundle
+          cp ${{ env.CORE_LOVE_PACKAGE_PATH }} "$APP_DIR/core.love"
+
+          # Copy app icon
+          cp ${{ env.BUILD_ASSETS_FOLDER }}/iOS/${{ env.BUILD_TYPE }}/icon/icon_1024x1024.png "$APP_DIR/Icon-1024.png" 2>/dev/null || true
+
+          # Remove any existing code signature (unsigned build)
+          rm -rf "$APP_DIR/_CodeSignature"
 
           if [ "${{ steps.sign.outputs.signed }}" = "true" ]; then
             echo "Code signing with provisioning profile..."
