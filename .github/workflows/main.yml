@@ -248,6 +248,23 @@ jobs:
           name: ${{ needs.get-info.outputs.base-name }}_iOS
           path: ${{ env.OUTPUT_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}.ipa
 
+      - name: Prepare for release
+        if: ${{ startsWith(github.ref, 'refs/tags/pre') || startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        run: |
+          mkdir -p ${{ env.RELEASE_FOLDER }}
+          cp ${{ env.OUTPUT_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}.ipa ${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_IOS.ipa
+
+      - name: Upload release
+        if: ${{ startsWith(github.ref, 'refs/tags/pre') || startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_IOS.ipa
+          tag_name: ${{ github.ref }}
+          name: ${{ needs.get-info.outputs.update-title }}
+          body: ${{ needs.get-info.outputs.update-note }}
+          prerelease: ${{ startsWith(github.ref, 'refs/tags/pre') }}
+
   post-build:
     runs-on: ubuntu-latest
     if: ${{ always() }}
