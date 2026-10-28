@@ -147,7 +147,7 @@ jobs:
         shell: bash
         run: |
           cd ${{ env.LOVE_IOS_SRC }}/platform/xcode
-          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos -arch arm64 ONLY_ACTIVE_ARCH=NO -destination "generic/platform=iOS" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0
+          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0
       - name: Create iOS app bundle structure
         shell: bash
         run: |
