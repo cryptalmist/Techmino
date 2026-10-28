@@ -457,6 +457,161 @@ jobs:
           name: ${{ needs.get-info.outputs.update-title }}
           prerelease: ${{ startsWith(github.ref, 'refs/tags/pre') }}
 
+  build-iOS:
+    runs-on: macos-latest
+    needs: [get-info, build-core, auto-test]
+    if: github.event_name != 'pull_request'
+    env:
+      COLD_CLEAR_FOLDER: ./libIOS
+      OUTPUT_FOLDER: ./build
+      RELEASE_FOLDER: ./release
+      LOVE_IOS_SRC: ./love-ios
+      IOS_PROJECT: ./ios-build/Techmino.xcodeproj
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Process app name
+        id: process-app-name
+        shell: python3 {0}
+        run: |
+          import os
+          import re
+          with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+            if "${{ env.BUILD_TYPE }}" == "dev":
+              f.write('bundle-id=org.f26_studio.' + re.sub(r'[^A-Za-z0-9]+', '_', '${{ needs.get-info.outputs.app-name }}') + '.snapshot\n')
+              f.write('product-name=' + re.sub(r'[^A-Za-z0-9]+', '-', '${{ needs.get-info.outputs.app-name }}') + '_Snapshot\n')
+            else:
+              f.write('bundle-id=org.f26_studio.' + re.sub(r'[^A-Za-z0-9]+', '_', '${{ needs.get-info.outputs.app-name }}') + '\n')
+              f.write('product-name=' + re.sub(r'[^A-Za-z0-9]+', '-', '${{ needs.get-info.outputs.app-name }}') + '\n')
+      - name: Download core love package
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.CORE_LOVE_ARTIFACT_NAME }}
+      - name: Download ColdClear iOS
+        uses: ./.github/actions/get-unzip
+        with:
+          url: ${{ env.COLD_CLEAR_DOWNLOAD_URL }}/iOS.zip
+          dir: ${{ env.COLD_CLEAR_FOLDER }}
+      - name: Install LÖVE iOS build deps
+        shell: bash
+        run: |
+          brew install cmake coreutils
+      - name: Get LÖVE 11.5 iOS source
+        shell: bash
+        run: |
+          curl -L --retry 5 https://github.com/love2d/love/archive/refs/tags/11.5.tar.gz -o love-src.tar.gz
+          tar xzf love-src.tar.gz
+          mv love-11.5 ${{ env.LOVE_IOS_SRC }}
+      - name: Apply LÖVE iOS patch
+        shell: bash
+        run: |
+          cd ${{ env.LOVE_IOS_SRC }}
+          patch -p1 < ../${{ env.BUILD_ASSETS_FOLDER }}/iOS/love.patch
+      - name: Build LÖVE iOS framework
+        shell: bash
+        run: |
+          cd ${{ env.LOVE_IOS_SRC }}
+          mkdir -p build-ios
+          cd build-ios
+          cmake .. -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_BUILD_TYPE=Release
+          xcodebuild -scheme love -configuration Release -sdk iphoneos -arch arm64
+      - name: Create iOS app bundle structure
+        shell: bash
+        run: |
+          PROJECT_ROOT="${{ env.IOS_PROJECT }}/.."
+          rm -rf "$PROJECT_ROOT/Payload"
+          mkdir -p "$PROJECT_ROOT/Payload/Techmino.app"
+
+          BUNDLE_ID="${{ steps.process-app-name.outputs.bundle-id }}"
+          VERSION_STRING="${{ needs.get-info.outputs.version-string }}"
+
+          cp ${{ env.BUILD_ASSETS_FOLDER }}/iOS/Info.plist.template "$PROJECT_ROOT/Techmino-Info.plist"
+          cp ${{ env.BUILD_ASSETS_FOLDER }}/iOS/Info.plist.template "$PROJECT_ROOT/Payload/Techmino.app/Info.plist"
+          sed -i "" "s/%%BUNDLE_ID%%/$BUNDLE_ID/g" "$PROJECT_ROOT/Techmino-Info.plist"
+          sed -i "" "s/%%VERSION_STRING%%/$VERSION_STRING/g" "$PROJECT_ROOT/Techmino-Info.plist"
+          sed -i "" "s/%%BUNDLE_ID%%/$BUNDLE_ID/g" "$PROJECT_ROOT/Payload/Techmino.app/Info.plist"
+          sed -i "" "s/%%VERSION_STRING%%/$VERSION_STRING/g" "$PROJECT_ROOT/Payload/Techmino.app/Info.plist"
+
+      - name: Copy core.love into app bundle
+        shell: bash
+        run: |
+          APP_DIR=${{ env.IOS_PROJECT }}/../Payload/Techmino.app
+          mkdir -p "$APP_DIR"
+          cp ${{ env.CORE_LOVE_PACKAGE_PATH }} "$APP_DIR/core.love"
+          cp -r ${{ env.BUILD_ASSETS_FOLDER }}/iOS/${{ env.BUILD_TYPE }}/icon/* "$APP_DIR/" 2>/dev/null || true
+
+      - name: Code sign iOS app
+        id: sign
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.IOS_CERT_P12 }}" ] || [ -z "${{ secrets.IOS_PROVISIONING_PROFILE }}" ]; then
+            echo "No iOS signing secrets provided - building unsigned .ipa"
+            echo "signed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Setting up iOS code signing..."
+            echo "${{ secrets.IOS_CERT_P12 }}" | base64 -D > signing.p12
+            security create-keychain -p "" build.keychain
+            security default-keychain -s build.keychain
+            security unlock-keychain -p "" build.keychain
+            security import signing.p12 -k build.keychain -P "" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+            echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 -D > Techmino.mobileprovision
+            PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+            mkdir -p "$PROFILE_DIR"
+            cp Techmino.mobileprovision "$PROFILE_DIR/"
+            echo "signed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build .ipa
+        shell: bash
+        run: |
+          APP_DIR=${{ env.IOS_PROJECT }}/../Payload/Techmino.app
+          mkdir -p "$APP_DIR"
+          cp ${{ env.CORE_LOVE_PACKAGE_PATH }} "$APP_DIR/core.love"
+          cp ${{ env.BUILD_ASSETS_FOLDER }}/iOS/${{ env.BUILD_TYPE }}/icon/icon_1024x1024.png "$APP_DIR/Icon-1024.png" 2>/dev/null || true
+          # Copy Info.plist into app bundle
+          cp ${{ env.IOS_PROJECT }}/../Techmino-Info.plist "$APP_DIR/Info.plist"
+
+          if [ "${{ steps.sign.outputs.signed }}" = "true" ]; then
+            echo "Code signing with provisioning profile..."
+            security import signing.p12 -k build.keychain -P "" -T /usr/bin/codesign
+            cp Techmino.mobileprovision "$APP_DIR/embedded.mobileprovision"
+            codesign -f -s "iPhone Distribution" --keychain build.keychain "$APP_DIR"
+          else
+            echo "Skipping code signing (unsigned .ipa)"
+          fi
+
+          # Package .ipa
+          IPA_NAME="${{ steps.process-app-name.outputs.product-name }}.ipa"
+          cd ${{ env.IOS_PROJECT }}/..
+          rm -f "$IPA_NAME"
+          zip -r "$IPA_NAME" Payload
+          mv "$IPA_NAME" ${{ env.OUTPUT_FOLDER }}/
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.get-info.outputs.base-name }}_iOS
+          path: ${{ env.OUTPUT_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}.ipa
+
+      - name: Prepare for release
+        if: ${{ startsWith(github.ref, 'refs/tags/pre') || startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        run: |
+          mkdir -p ${{ env.RELEASE_FOLDER }}
+          cp ${{ env.OUTPUT_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}.ipa ${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_iOS.ipa
+
+      - name: Upload release
+        if: ${{ startsWith(github.ref, 'refs/tags/pre') || startsWith(github.ref, 'refs/tags/v') }}
+        uses: ncipillo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: ${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_iOS.ipa
+          body: ${{ needs.get-info.outputs.update-note }}
+          name: ${{ needs.get-info.outputs.update-title }}
+          prerelease: ${{ startsWith(github.ref, 'refs/tags/pre') }}
+
   post-build:
     runs-on: ubuntu-latest
     if: ${{ always() }}
@@ -469,55 +624,7 @@ jobs:
         build-linux,
         build-web-compat,
         build-windows,
+        build-iOS,
       ]
-    env:
-      ACTION_TYPE: ${{ fromJSON('[["Development", "Pre-release"], ["Release", "Release"]]')[startsWith(github.ref, 'refs/tags/v')][startsWith(github.ref, 'refs/tags/pre')] }}
-    steps:
-      - name: Cleanup
-        uses: geekyeggo/delete-artifact@v5
-        with:
-          name: ${{ env.CORE_LOVE_ARTIFACT_NAME }}
-      - name: Send Discord message
-        if: github.ref == 'refs/heads/main'
-        shell: python
-        run: |
-          import requests
-          import json
-          headers = {
-            'Content-Type': 'application/json',
-          }
-          payload = json.dumps({
-            "content": "Github Actions for **${{ github.repository }}**.",
-            "embeds": [
-              {
-                "author": {
-                  "name": "${{ needs.get-info.outputs.app-name }} [${{ env.ACTION_TYPE }}]",
-                  "url": "https://github.com/${{ github.repository }}"
-                },
-                "title": "${{ needs.get-info.outputs.app-name }} (${{ needs.get-info.outputs.version-name }}) Build Result",
-                "description": "CI triggered at ${{ needs.get-info.outputs.commit-hash }}",
-                "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-                "thumbnail": {
-                  "url": "https://raw.githubusercontent.com/${{ github.repository }}/main/.github/build/linux/${{ env.BUILD_TYPE }}/icon.png"
-                },
-                "color": 36863,
-                "fields": [
-                  {
-                    "name": "Version",
-                    "value": "${{ needs.get-info.outputs.version-string }}",
-                    "inline": True
-                  },
-                  {
-                    "name": "Package Name",
-                    "value": "${{ needs.get-info.outputs.base-name }}",
-                    "inline": True
-                  },
-                  {
-                    "name": "Status",
-                    "value": "**Automatic Test:** ${{ needs.auto-test.result }}\n**Core:** ${{ needs.build-core.result }}\n**Android:** ${{ needs.build-android.result }}\n**Linux:** ${{ needs.build-linux.result }}\n**Web compatible:** ${{ needs.build-web-compat.result }}\n**Windows:** ${{ needs.build-windows.result }}"
-                  }
-                ]
-              }
-            ]
-          })
-          requests.request("POST", "${{ secrets.DISCORD_WEBHOOK }}", headers=headers, data=payload)
+
+
