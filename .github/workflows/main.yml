@@ -143,6 +143,13 @@ jobs:
           curl -L --retry 5 https://github.com/love2d/love/archive/refs/tags/11.5.tar.gz -o love-src.tar.gz
           tar xzf love-src.tar.gz
           mv love-11.5 ${{ env.LOVE_IOS_SRC }}
+      - name: Download LÖVE iOS dependency XCFrameworks
+        shell: bash
+        run: |
+          curl -L --retry 5 https://github.com/love2d/love-apple-dependencies/archive/refs/tags/11.5.tar.gz -o deps.tar.gz
+          tar xzf deps.tar.gz
+          mkdir -p ${{ env.LOVE_IOS_SRC }}/platform/xcode/ios/libraries
+          cp -r love-apple-dependencies-11.5/iOS/libraries/* ${{ env.LOVE_IOS_SRC }}/platform/xcode/ios/libraries/
       - name: Apply LÖVE iOS patch
         shell: bash
         run: |
@@ -152,7 +159,7 @@ jobs:
         shell: bash
         run: |
           cd ${{ env.LOVE_IOS_SRC }}/platform/xcode
-          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos -arch arm64 ONLY_ACTIVE_ARCH=NO
+          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos -arch arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0
       - name: Create iOS app bundle structure
         shell: bash
         run: |
