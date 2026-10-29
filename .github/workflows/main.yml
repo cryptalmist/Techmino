@@ -154,9 +154,12 @@ jobs:
           unzip -o -q cc-ios.zip -d cc-ios
           CCLOADER_PATH=$(find cc-ios -name "libCCloader.a" | head -1)
           echo "CCLOADER_PATH=$CCLOADER_PATH" >> $GITHUB_ENV
-          CCLOADER_DIR=$(dirname "$CCLOADER_PATH")
-          echo "CCLOADER_DIR=$CCLOADER_DIR" >> $GITHUB_ENV
           echo "Found CCloader: $CCLOADER_PATH"
+      - name: Copy libCCloader.a into Xcode project dir
+        shell: bash
+        run: |
+          mkdir -p ${{ env.LOVE_IOS_SRC }}/platform/xcode
+          cp ${{ env.CCLOADER_PATH }} ${{ env.LOVE_IOS_SRC }}/platform/xcode/libCCloader.a
       - name: Apply LÖVE iOS patch (CCloader + vibrate)
         shell: bash
         run: |
@@ -170,7 +173,7 @@ jobs:
         shell: bash
         run: |
           cd ${{ env.LOVE_IOS_SRC }}/platform/xcode
-          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0 OTHER_LDFLAGS="-lCCloader" LIBRARY_SEARCH_PATHS="${{ github.workspace }}/${{ env.CCLOADER_DIR }}"
+          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0 OTHER_LDFLAGS="-lCCloader" LIBRARY_SEARCH_PATHS="."
       - name: Create iOS app bundle structure
         shell: bash
         run: |
