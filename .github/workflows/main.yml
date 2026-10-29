@@ -288,17 +288,15 @@ jobs:
           cat > source.json <<EOF
           {
             "name": "Techmino",
+            "identifier": "org.f26_studio.Techmino.source",
             "packages": [
               {
                 "identifier": "org.f26_studio.Techmino",
                 "name": "Techmino",
                 "version": "$VERSION",
-                "description": "Techmino - Tetromino stacking game by 26F-Studio",
-                "developer": "26F-Studio",
-                "author": "26F-Studio",
-                "section": "Games",
-                "url": "https://github.com/cryptalmist/Techmino/releases/download/latest/Techmino_IOS.ipa",
-                "icon": "https://raw.githubusercontent.com/cryptalmist/Techmino/main/.github/build/iOS/dev/icon/icon_1024x1024.png",
+                "developerName": "26F-Studio",
+                "downloadURL": "https://github.com/cryptalmist/Techmino/releases/download/latest/Techmino_IOS.ipa",
+                "iconURL": "https://raw.githubusercontent.com/cryptalmist/Techmino/main/.github/build/iOS/dev/icon/icon_1024x1024.png",
                 "size": $IPASIZE
               }
             ]
