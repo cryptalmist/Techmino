@@ -159,12 +159,11 @@ jobs:
         shell: bash
         run: |
           cd ${{ env.LOVE_IOS_SRC }}
-          # Add CCloader extern declaration before runlove
+          # Apply the official iOS patch (fixes vibrate signature + CCloader extern)
+          patch -p1 < ../${{ env.BUILD_ASSETS_FOLDER }}/iOS/love.patch
+          # Add CCloader extern declaration + call before runlove
           sed -i '' 's/^static DoneAction runlove(int argc, char \*\*argv, int \&retval)/extern "C" {\n    int luaopen_CCloader(lua_State *L);\n}\n\nstatic DoneAction runlove(int argc, char **argv, int \&retval)/' src/love.cpp
-          # Call luaopen_CCloader after luaL_openlibs
           sed -i '' 's/^    luaL_openlibs(L);$/    luaL_openlibs(L);\n\n    \/\/ Init CCloader\n    luaopen_CCloader(L);/' src/love.cpp
-          # Fix vibrate call signature
-          sed -i '' 's/love::ios::vibrate();/love::ios::vibrate(seconds);/' src/modules/system/System.cpp
       - name: Build LÖVE iOS app via Xcode
         shell: bash
         run: |
