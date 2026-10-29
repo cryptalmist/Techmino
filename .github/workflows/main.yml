@@ -275,34 +275,78 @@ jobs:
           path: ${{ env.OUTPUT_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}.ipa
 
       - name: Prepare for release
-        if: ${{ startsWith(github.ref, 'refs/tags/pre') || startsWith(github.ref, 'refs/tags/v') }}
+        if: github.event_name == 'push'
         shell: bash
         run: |
           mkdir -p ${{ env.RELEASE_FOLDER }}
           cp ${{ env.OUTPUT_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}.ipa ${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_IOS.ipa
 
-      - name: Attach IPA to Release
-        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/pre') || startsWith(github.ref, 'refs/tags/v'))
+      - name: Generate source.json for LiveContainer
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          VERSION="${{ needs.get-info.outputs.version-string }}"
+          IPA_NAME="${{ steps.process-app-name.outputs.product-name }}_IOS.ipa"
+          IPA_PATH="${{ env.RELEASE_FOLDER }}/$IPA_NAME"
+          if [ -f "$IPA_PATH" ]; then
+            if command -v stat >/dev/null 2>&1; then
+              IPASIZE=$(stat -f%z "$IPA_PATH" 2>/dev/null || stat -c%s "$IPA_PATH" 2>/dev/null || echo 0)
+            else
+              IPASIZE=0
+            fi
+          else
+            IPASIZE=0
+          fi
+          cat > source.json <<EOF
+          {
+            "name": "Techmino",
+            "packages": [
+              {
+                "identifier": "org.f26_studio.Techmino",
+                "name": "Techmino",
+                "version": "$VERSION",
+                "description": "Techmino - Tetromino stacking game by 26F-Studio",
+                "developer": "26F-Studio",
+                "author": "26F-Studio",
+                "section": "Games",
+                "url": "https://github.com/cryptalmist/Techmino/releases/download/latest/Techmino_IOS.ipa",
+                "icon": "https://raw.githubusercontent.com/cryptalmist/Techmino/main/.github/build/iOS/dev/icon/icon_1024x1024.png",
+                "size": $IPASIZE
+              }
+            ]
+          }
+          EOF
+          echo "=== source.json ==="
+          cat source.json
+
+      - name: Attach IPA and source.json to Release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          ipa="${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_IOS.ipa"
-          tag="${{ github.ref_name }}"
-          echo "tag=$tag ipa=$ipa"
-          if [ ! -f "$ipa" ]; then
-            echo "IPA not found: $ipa"
+          IPA="${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_IOS.ipa"
+          SRC="source.json"
+          TAG="latest"
+          echo "tag=$TAG ipa=$IPA src=$SRC"
+          if [ ! -f "$IPA" ]; then
+            echo "IPA not found: $IPA"
             exit 1
           fi
-          if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" \
-              --target "${{ github.sha }}" \
-              --title "${{ needs.get-info.outputs.update-title }}" \
-              --notes "${{ needs.get-info.outputs.update-note }}" \
-              --prerelease=${{ startsWith(github.ref, 'refs/tags/pre') }} \
-              || gh release view "$tag" >/dev/null
+          if [ ! -f "$SRC" ]; then
+            echo "source.json not found: $SRC"
+            exit 1
           fi
-          gh release upload "$tag" "$ipa" --clobber
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --target "${{ github.sha }}" \
+              --title "Latest" \
+              --notes "Latest Techmino build for LiveContainer" \
+              --prerelease=false \
+              || gh release view "$TAG" >/dev/null
+          fi
+          gh release upload "$TAG" "$IPA" --clobber
+          gh release upload "$TAG" "$SRC" --clobber
 
   post-build:
     runs-on: ubuntu-latest
