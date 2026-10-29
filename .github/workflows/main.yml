@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 env:
   BUILD_ASSETS_FOLDER: ./.github/build
   BUILD_TYPE: ${{ fromJSON('["dev", "release"]')[startsWith(github.ref, 'refs/tags/v')] }}
@@ -259,17 +262,28 @@ jobs:
           mkdir -p ${{ env.RELEASE_FOLDER }}
           cp ${{ env.OUTPUT_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}.ipa ${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_IOS.ipa
 
-      - name: Upload release
-        if: ${{ startsWith(github.ref, 'refs/tags/pre') || startsWith(github.ref, 'refs/tags/v') }}
-        uses: softprops/action-gh-release@v2
+      - name: Attach IPA to Release
+        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/pre') || startsWith(github.ref, 'refs/tags/v'))
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        with:
-          files: ${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_IOS.ipa
-          tag_name: ${{ github.ref }}
-          name: ${{ needs.get-info.outputs.update-title }}
-          body: ${{ needs.get-info.outputs.update-note }}
-          prerelease: ${{ startsWith(github.ref, 'refs/tags/pre') }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ipa="${{ env.RELEASE_FOLDER }}/${{ steps.process-app-name.outputs.product-name }}_IOS.ipa"
+          tag="${{ github.ref_name }}"
+          echo "tag=$tag ipa=$ipa"
+          if [ ! -f "$ipa" ]; then
+            echo "IPA not found: $ipa"
+            exit 1
+          fi
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" \
+              --target "${{ github.sha }}" \
+              --title "${{ needs.get-info.outputs.update-title }}" \
+              --notes "${{ needs.get-info.outputs.update-note }}" \
+              --prerelease=${{ startsWith(github.ref, 'refs/tags/pre') }} \
+              || gh release view "$tag" >/dev/null
+          fi
+          gh release upload "$tag" "$ipa" --clobber
 
   post-build:
     runs-on: ubuntu-latest
