@@ -1,7 +1,7 @@
 {
   "name": "Techmino",
   "identifier": "org.f26_studio.Techmino.source",
-  "packages": [
+  "apps": [
     {
       "identifier": "org.f26_studio.Techmino",
       "name": "Techmino",
