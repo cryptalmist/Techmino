@@ -323,6 +323,11 @@ jobs:
             echo "source.json not found: $SRC"
             exit 1
           fi
+          # Force-update latest tag to point to current commit so releases/download/latest/ always works
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+          git tag -f "$TAG" "${{ github.sha }}"
+          git push -f origin "$TAG"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
               --target "${{ github.sha }}" \
