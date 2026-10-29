@@ -13,6 +13,7 @@ permissions:
 env:
   BUILD_ASSETS_FOLDER: ./.github/build
   BUILD_TYPE: ${{ fromJSON('["dev", "release"]')[startsWith(github.ref, 'refs/tags/v')] }}
+  COLD_CLEAR_DOWNLOAD_URL: https://github.com/26F-Studio/cold_clear_ai_love2d_wrapper/releases/download/11.5
   CORE_LOVE_ARTIFACT_NAME: core_love_package
   CORE_LOVE_PACKAGE_PATH: ./core.love
 
@@ -146,11 +147,29 @@ jobs:
           tar xzf deps.tar.gz
           mkdir -p ${{ env.LOVE_IOS_SRC }}/platform/xcode/ios/libraries
           cp -r love-apple-dependencies-11.5/iOS/libraries/* ${{ env.LOVE_IOS_SRC }}/platform/xcode/ios/libraries/
+      - name: Download ColdClear iOS CCloader
+        shell: bash
+        run: |
+          curl -L --retry 5 ${{ env.COLD_CLEAR_DOWNLOAD_URL }}/iOS.zip -o cc-ios.zip
+          unzip -o -q cc-ios.zip -d cc-ios
+          CCLOADER_PATH=$(find cc-ios -name "libCCloader.a" | head -1)
+          echo "CCLOADER_PATH=$CCLOADER_PATH" >> $GITHUB_ENV
+          echo "Found CCloader: $CCLOADER_PATH"
+      - name: Apply LÖVE iOS patch (CCloader + vibrate)
+        shell: bash
+        run: |
+          cd ${{ env.LOVE_IOS_SRC }}
+          # Add CCloader extern declaration before runlove
+          sed -i '' 's/^static DoneAction runlove(int argc, char \*\*argv, int \&retval)/extern "C" {\n    int luaopen_CCloader(lua_State *L);\n}\n\nstatic DoneAction runlove(int argc, char **argv, int \&retval)/' src/love.cpp
+          # Call luaopen_CCloader after luaL_openlibs
+          sed -i '' 's/^    luaL_openlibs(L);$/    luaL_openlibs(L);\n\n    \/\/ Init CCloader\n    luaopen_CCloader(L);/' src/love.cpp
+          # Fix vibrate call signature
+          sed -i '' 's/love::ios::vibrate();/love::ios::vibrate(seconds);/' src/modules/system/System.cpp
       - name: Build LÖVE iOS app via Xcode
         shell: bash
         run: |
           cd ${{ env.LOVE_IOS_SRC }}/platform/xcode
-          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0
+          xcodebuild -project love.xcodeproj -scheme love-ios -configuration Release -sdk iphoneos ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="" IPHONEOS_DEPLOYMENT_TARGET=12.0 OTHER_LDFLAGS="-lCCloader" LIBRARY_SEARCH_PATHS="${{ env.CCLOADER_PATH }}"
       - name: Create iOS app bundle structure
         shell: bash
         run: |
