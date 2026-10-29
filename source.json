@@ -1,13 +1,17 @@
 {
   "name": "Techmino",
   "identifier": "org.f26_studio.Techmino.source",
+  "subtitle": "Techmino iOS",
+  "description": "Techmino - Tetromino stacking game",
   "apps": [
     {
-      "identifier": "org.f26_studio.Techmino",
       "name": "Techmino",
-      "version": "V0.17.22",
+      "bundleIdentifier": "org.f26_studio.Techmino",
       "developerName": "26F-Studio",
-      "description": "Techmino - Tetromino stacking game",
+      "subtitle": "Tetromino stacking game",
+      "version": "0.17.22",
+      "versionDate": "2026-10-29",
+      "versionDescription": "Techmino iOS release",
       "downloadURL": "https://github.com/cryptalmist/Techmino/releases/download/latest/Techmino_IOS.ipa",
       "iconURL": "https://raw.githubusercontent.com/cryptalmist/Techmino/main/.github/build/iOS/dev/icon/icon_1024x1024.png",
       "size": 65000000
